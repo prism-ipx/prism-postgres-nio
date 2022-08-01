@@ -12,9 +12,23 @@ extension PostgresData {
     public init(array: [PostgresData?], elementType: PostgresDataType) {
         var buffer = ByteBufferAllocator().buffer(capacity: 0)
         // 0 if empty, 1 if not
+        // Add Array type handling
         buffer.writeInteger(array.isEmpty ? 0 : 1, as: UInt32.self)
-        // b
-        buffer.writeInteger(0, as: UInt32.self)
+        var nilEntry = false
+        for item in array {
+          if (item == nil || item!.value == nil) {
+            nilEntry = true
+            break
+          }
+        }
+        // if we have ANY elements that have are nil then b == 1
+        if(nilEntry){
+          buffer.writeInteger(1, as: UInt32.self)
+        } else {
+          // This is called if the value is nil!
+          // if nil set to Max Value (4294967295)
+          buffer.writeInteger(UInt32.max, as: UInt32.self)
+        }
         // array element type
         buffer.writeInteger(elementType.rawValue)
 
@@ -80,7 +94,6 @@ extension PostgresData {
         guard let b = value.readInteger(as: UInt32.self) else {
             return nil
         }
-        assert(b == 0, "Array b field did not equal zero")
         guard let type = value.readInteger(as: PostgresDataType.self) else {
             return nil
         }
@@ -98,17 +111,51 @@ extension PostgresData {
         assert(dimensions == 1, "Multi-dimensional arrays not yet supported")
 
         var array: [PostgresData] = []
-        while
-            let itemLength = value.readInteger(as: UInt32.self),
-            let itemValue = value.readSlice(length: numericCast(itemLength))
-        {
-            let data = PostgresData(
-                type: type,
-                typeModifier: nil,
-                formatCode: self.formatCode,
-                value: itemValue
-            )
-            array.append(data)
+       if( b == 0) {
+          while
+              let itemLength = value.readInteger(as: UInt32.self),
+              let itemValue = value.readSlice(length: numericCast(itemLength))
+          {
+              let data = PostgresData(
+                  type: type,
+                  typeModifier: nil,
+                  formatCode: self.formatCode,
+                  value: itemValue
+              )
+              array.append(data)
+          }
+        } else if (b == 1){
+          for _ in 1...length {
+            let iLength = value.readInteger(as: UInt32.self)
+            if(iLength == 4294967295)
+            {
+              let iValue = ByteBuffer(staticString: "|NULL|") // This is a shit way to do this, but the LEAF module would need changing too
+              if (type == 25) { // text
+                let data = PostgresData(
+                    type: type,
+                    typeModifier: nil,
+                    formatCode: self.formatCode,
+                    value: iValue)
+                array.append(data)
+              } else {
+                assert(1 == 2, "Unhandled Data type, expecting TEXT field")
+              }
+            } else {
+
+              let iValue = value.readSlice(length: numericCast(iLength ?? 0))
+              let data = PostgresData(
+                  type: type,
+                  typeModifier: nil,
+                  formatCode: self.formatCode,
+                  value: iValue)
+
+              array.append(data)
+            }
+          }
+        }
+        else {
+          assert(b <= 1, "Array b field did not equal zero")
+          assert(b >= 0, "Array b field did not equal zero")
         }
         return array
     }

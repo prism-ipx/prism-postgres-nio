@@ -9,28 +9,28 @@ public struct PostgresData: CustomStringConvertible, CustomDebugStringConvertibl
     public static var null: PostgresData {
         return .init(type: .null)
     }
-    
+
     /// The object ID of the field's data type.
     public var type: PostgresDataType
-    
+
     /// The type modifier (see pg_attribute.atttypmod). The meaning of the modifier is type-specific.
     public var typeModifier: Int32?
-    
+
     /// The format code being used for the field.
     /// Currently will be zero (text) or one (binary).
     /// In a RowDescription returned from the statement variant of Describe,
     /// the format code is not yet known and will always be zero.
     public var formatCode: PostgresFormat
-    
+
     public var value: ByteBuffer?
-    
+
     public init(type: PostgresDataType, typeModifier: Int32? = nil, formatCode: PostgresFormat = .binary, value: ByteBuffer? = nil) {
         self.type = type
         self.typeModifier = typeModifier
         self.formatCode = formatCode
         self.value = value
     }
-    
+
     public var description: String {
         guard var value = self.value else {
             return "<null>"
@@ -71,7 +71,30 @@ public struct PostgresData: CustomStringConvertible, CustomDebugStringConvertibl
         case .float4Array:
             description = self.array(of: Float.self)?.description
         case .textArray:
-            description = self.array(of: String.self)?.description
+          // description = self.array(of: String.self)?.description
+          var stringBuilder: String
+          stringBuilder = "["
+          // textArray needs to allow NULLABLE values
+          if let array = self.array {
+            for data in array {
+              if stringBuilder.count > 1 {
+                stringBuilder  += ","
+              }
+
+              if let item = String(postgresData: data) {
+                if item == "|NULL|" {
+                  stringBuilder += "NULL"
+                } else {
+                  stringBuilder += "\"\(item)\""
+                }
+              } else {
+                stringBuilder += "NULL"
+              }
+            }
+            description = stringBuilder + "]"
+          } else {
+            description = nil
+          }
         case .jsonbArray:
             description = self.array?.description
         default:
