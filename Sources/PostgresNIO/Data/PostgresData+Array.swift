@@ -111,7 +111,7 @@ extension PostgresData {
         assert(dimensions == 1, "Multi-dimensional arrays not yet supported")
 
         var array: [PostgresData] = []
-       if( b == 0) {
+        if( b == 0) {
           while
               let itemLength = value.readInteger(as: UInt32.self),
               let itemValue = value.readSlice(length: numericCast(itemLength))
@@ -127,18 +127,17 @@ extension PostgresData {
         } else if (b == 1){
           for _ in 1...length {
             let iLength = value.readInteger(as: UInt32.self)
-            if(iLength == 4294967295)
+            if(iLength == 4294967295 || iLength == nil)
             {
-              let iValue = ByteBuffer(staticString: "|NULL|") // This is a shit way to do this, but the LEAF module would need changing too
-              if (type == 25) { // text
+              if (type == .text || type == .int2 || type == .int4 || type == .int8) { // text
                 let data = PostgresData(
                     type: type,
                     typeModifier: nil,
                     formatCode: self.formatCode,
-                    value: iValue)
+                    value: nil)
                 array.append(data)
               } else {
-                assert(1 == 2, "Unhandled Data type, expecting TEXT field")
+                assert(1 == 2, "Unhandled Data type, expecting TEXT or INT field")
               }
             } else {
 
