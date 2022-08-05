@@ -22,13 +22,8 @@ extension PostgresData {
           }
         }
         // if we have ANY elements that have are nil then b == 1
-        if(nilEntry){
-          buffer.writeInteger(1, as: UInt32.self)
-        } else {
-          // This is called if the value is nil!
-          // if nil set to Max Value (4294967295)
-          buffer.writeInteger(UInt32.max, as: UInt32.self)
-        }
+        buffer.writeInteger(nilEntry ? 1 : 0, as: UInt32.self)
+
         // array element type
         buffer.writeInteger(elementType.rawValue)
 
@@ -44,7 +39,8 @@ extension PostgresData {
                     buffer.writeInteger(numericCast(value.readableBytes), as: UInt32.self)
                     buffer.writeBuffer(&value)
                 } else {
-                    buffer.writeInteger(0, as: UInt32.self)
+                  // This is called if the value is nil!
+                    buffer.writeInteger(UInt32.max, as: UInt32.self)
                 }
             }
         }
@@ -127,7 +123,7 @@ extension PostgresData {
         } else if (b == 1){
           for _ in 1...length {
             let iLength = value.readInteger(as: UInt32.self)
-            if(iLength == 4294967295 || iLength == nil)
+            if(iLength == 4294967295)
             {
               if (type == .text || type == .int2 || type == .int4 || type == .int8) { // text
                 let data = PostgresData(
@@ -137,7 +133,7 @@ extension PostgresData {
                     value: nil)
                 array.append(data)
               } else {
-                assert(1 == 2, "Unhandled Data type, expecting TEXT or INT field")
+                assert(1 == 2, "Unhandled Data type, expecting TEXT or INT field type")
               }
             } else {
 
